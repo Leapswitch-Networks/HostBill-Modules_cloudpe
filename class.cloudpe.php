@@ -10,9 +10,19 @@
 class cloudpe extends HostingModule
 {
     protected $modname = 'CloudPe';
-    protected $version = '1.0.0';
+    protected $version = '1.0.1';
     protected $description = 'CloudPe Provisioning module for HostBill which communicate with CloudPe VHI to create and manage Users & envirnments.';
     protected $client_data;
+
+    /**
+     * Module info array - tells HostBill what features the module offers
+     * @var array
+     */
+    protected $info = [
+        'haveadmin' => true, // Module has admin controller
+        'havecron' => true,  // Module has cron controller
+        'havetpl' => true,   // Module uses templates
+    ];
 
     /**
      * You can choose which fields to display in Settings->Apps section
