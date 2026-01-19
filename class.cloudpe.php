@@ -10,9 +10,19 @@
 class cloudpe extends HostingModule
 {
     protected $modname = 'CloudPe';
-    protected $version = '1.0.0';
+    protected $version = '1.0.1';
     protected $description = 'CloudPe Provisioning module for HostBill which communicate with CloudPe VHI to create and manage Users & envirnments.';
     protected $client_data;
+
+    /**
+     * Module info array - tells HostBill what features the module offers
+     * @var array
+     */
+    protected $info = [
+        'haveadmin' => true, // Module has admin controller
+        'havecron' => true,  // Module has cron controller
+        'havetpl' => true,   // Module uses templates
+    ];
 
     /**
      * You can choose which fields to display in Settings->Apps section
@@ -112,6 +122,39 @@ class cloudpe extends HostingModule
         //     'default' => false
         // ]
     );
+
+    /**
+     * Called by HostBill when module version changes.
+     * Updates settings flags and registers cron task in database.
+     */
+    public function upgrade($previousVersion)
+    {
+        $db = HBRegistry::db();
+
+        // Update settings flags (haveadmin, havecron, havetpl)
+        $db->prepare(
+            "UPDATE hb_modules_configuration SET settings = ? WHERE module = 'cloudpe'"
+        )->execute(['|havecron|haveadmin|havetpl|']);
+
+        // Register cron task if not already present
+        $stmt = $db->prepare("SELECT id FROM hb_modules_configuration WHERE module = 'cloudpe' LIMIT 1");
+        $stmt->execute();
+        $module = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!empty($module['id'])) {
+            $taskKey = 'custom:' . $module['id'] . ':call_EveryRun';
+            $stmt = $db->prepare("SELECT task FROM hb_cron_tasks WHERE task = ? LIMIT 1");
+            $stmt->execute([$taskKey]);
+
+            if (!$stmt->fetch()) {
+                $db->prepare(
+                    "INSERT INTO hb_cron_tasks (task, name, lastrun, status, count, metadata, output, run_every, run_every_time, profile_id) VALUES (?, 'Module - CloudPe, every run', NOW(), 1, 0, '', '', 'Run', '1200', 1)"
+                )->execute([$taskKey]);
+            }
+        }
+
+        hbm_log_system("CloudPe module upgraded from {$previousVersion} to {$this->version}", "CloudPe Module");
+    }
 
     public function __construct()
     {
