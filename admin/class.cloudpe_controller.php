@@ -210,7 +210,8 @@ class cloudpe_controller extends HBController
         });
 
         // Assign variables to template
-        $this->template->assign('totalAccounts', count($allAccounts));
+        // Total accounts = total clients in CloudPe group (with + without cloudpeid)
+        $this->template->assign('totalAccounts', count($clientsWithCloudpeid) + count($clientsWithoutCloudpeid));
         $this->template->assign('totalClients', count($clientsWithCloudpeid) + count($clientsWithoutCloudpeid));
         $this->template->assign('clientsWithCloudpeid', $clientsWithCloudpeid);
         $this->template->assign('clientsWithoutCloudpeid', $clientsWithoutCloudpeid);

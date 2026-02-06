@@ -10,7 +10,7 @@
 class cloudpe extends HostingModule
 {
     protected $modname = 'CloudPe';
-    protected $version = '1.0.3';
+    protected $version = '1.0.6';
     protected $description = 'CloudPe Provisioning module for HostBill which communicate with CloudPe VHI to create and manage Users & envirnments.';
     protected $client_data;
 
@@ -167,6 +167,8 @@ class cloudpe extends HostingModule
      */
     public function getSynchInfo()
     {
+        hbm_log_system(sprintf("getSynchInfo called for account_id: %s", $this->account_details['id'] ?? 'unknown'), "CloudPe Sync");
+
         $client_data = $this->getClientDetails($this->account_details['client_id']);
         $cloudpeid = $client_data['client']['cloudpeid'];
         $path = 'billing/account/rest/getaccounts';
@@ -332,4 +334,3 @@ class cloudpe extends HostingModule
         return $api->getClientDetails($params);
     }
 }
-
