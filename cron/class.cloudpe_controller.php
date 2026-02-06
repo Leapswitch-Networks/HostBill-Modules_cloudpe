@@ -18,7 +18,7 @@ class cloudpe_controller extends HBController
      */
     public function call_EveryRun()
     {
-        echo "CloudPe Sync: Starting..." . PHP_EOL;
+        echo "CloudPe every 5 minutes Sync: Starting..." . PHP_EOL;
 
         $api = new ApiWrapper();
 
@@ -43,7 +43,7 @@ class cloudpe_controller extends HBController
             $count++;
         }
 
-        echo "CloudPe Sync: Completed. Processed {$count} accounts." . PHP_EOL;
+        echo "CloudPe every 5 minutes Sync: Completed. Processed {$count} accounts." . PHP_EOL;
 
         return "CloudPe Sync: {$count} accounts processed.";
     }
