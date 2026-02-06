@@ -4,23 +4,23 @@ A HostBill provisioning module that integrates with CloudPe VHI (Virtual Hosting
 
 ## Overview
 
-| Property | Value |
-|----------|-------|
+| Property    | Value                |
+| ----------- | -------------------- |
 | Module Type | Hosting/Provisioning |
-| Version | 1.0.0 |
-| Author | Atul Mahankal |
-| Base Class | `HostingModule` |
+| Version     | 1.0.0                |
+| Author      | Atul Mahankal        |
+| Base Class  | `HostingModule`      |
 
 ## Features
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| Test Connection | ✅ Working | Verify API connectivity with CloudPe VHI |
-| Account Suspension | ✅ Working | Suspend user accounts on CloudPe (status=2) |
-| Account Unsuspension | ✅ Working | Reactivate suspended accounts (status=1) |
-| Status Synchronization | ✅ Working | Sync account status from CloudPe to HostBill |
-| Account Creation | ⚠️ Stub | Returns success without API call (manual linking required) |
-| Account Termination | ⚠️ Stub | Returns success without API call |
+| Feature                | Status     | Description                                                |
+| ---------------------- | ---------- | ---------------------------------------------------------- |
+| Test Connection        | ✅ Working | Verify API connectivity with CloudPe VHI                   |
+| Account Suspension     | ✅ Working | Suspend user accounts on CloudPe (status=2)                |
+| Account Unsuspension   | ✅ Working | Reactivate suspended accounts (status=1)                   |
+| Status Synchronization | ✅ Working | Sync account status from CloudPe to HostBill               |
+| Account Creation       | ⚠️ Stub    | Returns success without API call (manual linking required) |
+| Account Termination    | ⚠️ Stub    | Returns success without API call                           |
 
 ## Prerequisites
 
@@ -37,11 +37,13 @@ A HostBill provisioning module that integrates with CloudPe VHI (Virtual Hosting
 ## Installation
 
 1. Copy the `cloudpe` folder to your HostBill installation:
+
    ```
    /path/to/hostbill/includes/modules/Hosting/cloudpe/
    ```
 
 2. The folder should contain:
+
    ```
    cloudpe/
    └── class.cloudpe.php
@@ -56,11 +58,11 @@ A HostBill provisioning module that integrates with CloudPe VHI (Virtual Hosting
 
 Go to **Settings → Apps → Add New App** and configure:
 
-| Field | Description |
-|-------|-------------|
+| Field    | Description                                                        |
+| -------- | ------------------------------------------------------------------ |
 | Host URL | CloudPe VHI API base URL (e.g., `https://api.cloudpe.example.com`) |
-| App Id | Your CloudPe application identifier |
-| Session | CloudPe session token for API authentication |
+| App Id   | Your CloudPe application identifier                                |
+| Session  | CloudPe session token for API authentication                       |
 
 ### Product Setup
 
@@ -74,10 +76,10 @@ This module **requires** a custom client field `cloudpeid` to link HostBill clie
 
 **Settings → Client Custom Fields → Add Field**
 
-| Property | Value |
-|----------|-------|
-| Field Name | `cloudpeid` |
-| Field Type | Text Input |
+| Property    | Value           |
+| ----------- | --------------- |
+| Field Name  | `cloudpeid`     |
+| Field Type  | Text Input      |
 | Description | CloudPe User ID |
 
 ## How It Works
@@ -90,11 +92,11 @@ This module **requires** a custom client field `cloudpeid` to link HostBill clie
 
 ## API Endpoints Used
 
-| Action | Endpoint | Method |
-|--------|----------|--------|
-| Test Connection | `marketplace/app/rest/getchecksum` | GET |
-| Get Accounts | `billing/account/rest/getaccounts` | GET |
-| Set Account Status | `billing/account/rest/setaccountstatus` | GET |
+| Action             | Endpoint                                | Method |
+| ------------------ | --------------------------------------- | ------ |
+| Test Connection    | `marketplace/app/rest/getchecksum`      | GET    |
+| Get Accounts       | `billing/account/rest/getaccounts`      | GET    |
+| Set Account Status | `billing/account/rest/setaccountstatus` | GET    |
 
 ## Workflow
 
@@ -107,16 +109,19 @@ See [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) for technical implementatio
 ## Troubleshooting
 
 ### Connection Test Fails
+
 - Verify the Host URL is correct and accessible
 - Check App ID and Session credentials
 - Ensure CloudPe API is responding
 
 ### Suspension/Unsuspension Fails
+
 - Verify the client has a valid `cloudpeid` custom field value
 - Ensure the CloudPe user exists with that ID
 - Check HostBill system logs for API errors
 
 ### Account Sync Not Working
+
 - Confirm `cloudpeid` is set for the client
 - Check if CloudPe API returns data for that user ID
 - Review logs for API response errors
