@@ -10,7 +10,7 @@
 class cloudpe extends HostingModule
 {
     protected $modname = 'CloudPe';
-    protected $version = '1.0.6';
+    protected $version = '1.0.7';
     protected $description = 'CloudPe Provisioning module for HostBill which communicate with CloudPe VHI to create and manage Users & envirnments.';
     protected $client_data;
 

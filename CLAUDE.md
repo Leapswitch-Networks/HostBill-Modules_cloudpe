@@ -31,7 +31,7 @@ cloudpe/
 - `Send($path, $data, $method)` - cURL wrapper for all API calls
 
 **Cron Controller (`cron/class.cloudpe_controller.php`):**
-- `call_EveryRun()` - Runs every 5 minutes, syncs all active CloudPE accounts
+- `call_Daily()` - Runs once daily, syncs all active CloudPE accounts
 
 ### Data Flow
 

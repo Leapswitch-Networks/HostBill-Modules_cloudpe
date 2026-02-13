@@ -18,7 +18,7 @@ A HostBill provisioning module that integrates with CloudPe VHI (Virtual Hosting
 | Test Connection        | ✅ Working | Verify API connectivity with CloudPe VHI                   |
 | Account Suspension     | ✅ Working | Suspend user accounts on CloudPe (status=2)                |
 | Account Unsuspension   | ✅ Working | Reactivate suspended accounts (status=1)                   |
-| Status Synchronization | ✅ Working | Sync account status from CloudPe to HostBill               |
+| Status Synchronization | ✅ Working | Daily cron sync of account status from CloudPe to HostBill  |
 | Account Creation       | ⚠️ Stub    | Returns success without API call (manual linking required) |
 | Account Termination    | ⚠️ Stub    | Returns success without API call                           |
 
@@ -46,7 +46,9 @@ A HostBill provisioning module that integrates with CloudPe VHI (Virtual Hosting
 
    ```
    cloudpe/
-   └── class.cloudpe.php
+   ├── class.cloudpe.php
+   └── cron/
+       └── class.cloudpe_controller.php
    ```
 
 3. Go to HostBill Admin → Settings → Modules → Hosting Modules
@@ -88,7 +90,7 @@ This module **requires** a custom client field `cloudpeid` to link HostBill clie
 2. **Add client in HostBill** and set the `cloudpeid` custom field to the CloudPe User ID
 3. **Create order/account** in HostBill - the module marks it as created (no API call)
 4. **Suspend/Unsuspend** - module calls CloudPe API to change account status
-5. **Synchronize** - module fetches status from CloudPe and updates HostBill
+5. **Synchronize** - daily cron fetches status from CloudPe and updates HostBill
 
 ## API Endpoints Used
 

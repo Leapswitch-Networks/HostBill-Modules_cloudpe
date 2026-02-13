@@ -14,11 +14,11 @@ class cloudpe_controller extends HBController
 
     /**
      * Synchronize all CloudPe accounts that have cloudpeid set
-     * Called every 5 minutes by HostBill cron
+     * Called once daily by HostBill cron
      */
-    public function call_EveryRun()
+    public function call_Daily()
     {
-        echo "CloudPe every 5 minutes Sync: Starting..." . PHP_EOL;
+        echo "CloudPe Daily Sync: Starting..." . PHP_EOL;
 
         $api = new ApiWrapper();
 
@@ -43,7 +43,7 @@ class cloudpe_controller extends HBController
             $count++;
         }
 
-        echo "CloudPe every 5 minutes Sync: Completed. Processed {$count} accounts." . PHP_EOL;
+        echo "CloudPe Daily Sync: Completed. Processed {$count} accounts." . PHP_EOL;
 
         return "CloudPe Sync: {$count} accounts processed.";
     }
