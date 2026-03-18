@@ -16,6 +16,10 @@ class cloudpe extends HostingModule
 
     /**
      * Module info array - tells HostBill what features the module offers
+     * NOTE: $info is for OtherModule only, not HostingModule.
+     * Keeping it here causes HostBill to load both admin and cron controllers
+     * simultaneously, resulting in "Cannot declare class" PHP error.
+     * HostingModule discovers controllers by file presence automatically.
      * @var array
      */
     protected $info = [
@@ -142,14 +146,20 @@ class cloudpe extends HostingModule
         $module = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!empty($module['id'])) {
-            $taskKey = 'custom:' . $module['id'] . ':call_EveryRun';
-            $stmt = $db->prepare("SELECT task FROM hb_cron_tasks WHERE task = ? LIMIT 1");
-            $stmt->execute([$taskKey]);
+            $cronTasks = [
+                ['custom:' . $module['id'] . ':call_EveryRun', 'Module - CloudPe, every run', 'Run', '1200'],
+                ['custom:' . $module['id'] . ':call_Daily', 'Module - CloudPe, daily sync', 'Time', '02:00'],
+            ];
 
-            if (!$stmt->fetch()) {
-                $db->prepare(
-                    "INSERT INTO hb_cron_tasks (task, name, lastrun, status, count, metadata, output, run_every, run_every_time, profile_id) VALUES (?, 'Module - CloudPe, every run', NOW(), 1, 0, '', '', 'Run', '1200', 1)"
-                )->execute([$taskKey]);
+            foreach ($cronTasks as $task) {
+                $stmt = $db->prepare("SELECT task FROM hb_cron_tasks WHERE task = ? LIMIT 1");
+                $stmt->execute([$task[0]]);
+
+                if (!$stmt->fetch()) {
+                    $db->prepare(
+                        "INSERT INTO hb_cron_tasks (task, name, lastrun, status, count, metadata, output, run_every, run_every_time, profile_id) VALUES (?, ?, NOW(), 1, 0, '', '', ?, ?, 1)"
+                    )->execute([$task[0], $task[1], $task[2], $task[3]]);
+                }
             }
         }
 
