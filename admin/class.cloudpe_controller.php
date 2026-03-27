@@ -26,6 +26,12 @@ class cloudpe_controller extends HBController
     private $serverConfig = null;
 
     /**
+     * CloudPe brand_id in hb_brands
+     * @var int
+     */
+    private $cloudpeBrandId = 0;
+
+    /**
      * Called before any action
      */
     public function beforeCall($params)
@@ -35,8 +41,8 @@ class cloudpe_controller extends HBController
         $this->template->showtpl = 'default';
         $this->template->assign('modulename', 'cloudpe');
 
-        // Load CloudPE server config once
         $this->loadCloudPeServerConfig();
+        $this->resolveCloudPeBrandId();
     }
 
     /**
@@ -44,11 +50,11 @@ class cloudpe_controller extends HBController
      */
     private function loadCloudPeServerConfig()
     {
-        // Get CloudPE app from database using name column
         $db = HBRegistry::db();
         $stmt = $db->prepare("SELECT * FROM hb_servers WHERE name LIKE '%cloudpe%' OR name LIKE '%CloudPe%' LIMIT 1");
         $stmt->execute();
         $server = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->closeCursor();
 
         if (!empty($server)) {
             $this->serverConfig = [
@@ -60,164 +66,191 @@ class cloudpe_controller extends HBController
     }
 
     /**
-     * Get account sync info directly from database
-     * @param int $accountId Account ID
-     * @return array ['sync_date' => string, 'sync_status' => string]
+     * Resolve CloudPe brand_id from hb_brands table
      */
-    private function getAccountSyncFromDb($accountId)
+    private function resolveCloudPeBrandId()
     {
         $db = HBRegistry::db();
+        $stmt = $db->prepare("SELECT brand_id FROM hb_brands WHERE LOWER(name) LIKE '%cloudpe%' LIMIT 1");
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->closeCursor();
 
-        $syncDate = '';
-        $syncStatus = '';
-
-        // Get sync info from hb_accounts table (synch_date and synch_error columns)
-        try {
-            $stmt = $db->prepare("SELECT synch_date, synch_error FROM hb_accounts WHERE id = ? LIMIT 1");
-            $stmt->execute([$accountId]);
-            $account = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($account) {
-                // Get synch_date (HostBill uses 'synch' with 'h')
-                if (isset($account['synch_date']) && $account['synch_date'] != '0000-00-00 00:00:00') {
-                    $syncDate = $account['synch_date'];
-
-                    // Default to Successful if we have a valid sync date
-                    // Only mark as Failed if synch_error is explicitly set to non-zero value
-                    $syncStatus = 'Successful';
-                    if (isset($account['synch_error']) && $account['synch_error'] != '0') {
-                        $syncStatus = 'Failed';
-                    }
-                }
-            }
-        } catch (Exception $e) {
-            hbm_log_system("hb_accounts query error: " . $e->getMessage(), "CloudPe Module");
+        if ($row) {
+            $this->cloudpeBrandId = (int)$row['brand_id'];
         }
-
-        return ['sync_date' => $syncDate, 'sync_status' => $syncStatus];
     }
 
     /**
-     * Default action - shows clients with CloudPe brand and their services
+     * Default action - shows clients with summary cards and filterable table
      */
     public function _default($params)
     {
-        $api = new ApiWrapper();
+        $db = HBRegistry::db();
 
-        // Step 1: Get all clients (we'll filter by groupid after getting full details)
-        $clientsResponse = $api->getClients([]);
-        $allClientsRaw = !empty($clientsResponse['clients']) ? $clientsResponse['clients'] : [];
+        // 1. Get all brands keyed by id
+        $stmt = $db->query("SELECT brand_id, name FROM hb_brands ORDER BY name");
+        $brandRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->closeCursor();
+        $brandNames = [];
+        foreach ($brandRows as $row) {
+            $brandNames[(int)$row['brand_id']] = $row['name'];
+        }
 
-        // Step 2: Get all CloudPe accounts
-        $accountsResponse = $api->getAccounts([
-            'filter' => ['name' => 'CloudPe']
-        ]);
-        $allAccounts = !empty($accountsResponse['accounts']) ? $accountsResponse['accounts'] : [];
+        // 2. Get cloudpeid custom field id
+        $cloudpeFieldId = 0;
+        $stmt = $db->prepare("SELECT id FROM hb_client_fields WHERE code = 'cloudpeid' LIMIT 1");
+        $stmt->execute();
+        $fieldRow = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->closeCursor();
+        if ($fieldRow) {
+            $cloudpeFieldId = (int)$fieldRow['id'];
+        }
+
+        // 3. Get all clients with brand and cloudpeid in one query
+        $sql = "SELECT
+                    ca.id AS client_id,
+                    ca.email,
+                    ca.brand_id,
+                    cd.firstname,
+                    cd.lastname,
+                    cd.companyname,
+                    COALESCE(cfv.value, '') AS cloudpeid
+                FROM hb_client_access ca
+                INNER JOIN hb_client_details cd ON cd.id = ca.id
+                LEFT JOIN hb_client_fields_values cfv ON cfv.client_id = ca.id AND cfv.field_id = ?
+                ORDER BY ca.id DESC";
+        $stmt = $db->prepare($sql);
+        $stmt->execute([$cloudpeFieldId]);
+        $allClients = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->closeCursor();
+
+        // 4. Get all CloudPe accounts with sync info
+        //    Chain: hb_accounts.server_id -> hb_servers.id -> hb_servers.default_module -> hb_modules_configuration.id
+        $sql = "SELECT
+                    a.id AS account_id,
+                    a.client_id,
+                    a.status,
+                    a.synch_date,
+                    a.synch_error
+                FROM hb_accounts a
+                INNER JOIN hb_servers s ON s.id = a.server_id
+                INNER JOIN hb_modules_configuration mc ON mc.id = s.default_module
+                WHERE mc.module = 'cloudpe'
+                ORDER BY a.id";
+        $stmt = $db->prepare($sql);
+        $stmt->execute();
+        $accountRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->closeCursor();
 
         // Index accounts by client_id
         $accountsByClient = [];
-        if (!empty($allAccounts)) {
-            foreach ($allAccounts as $acc) {
-                if (empty($acc['client_id'])) {
-                    continue;
-                }
-                $clientId = $acc['client_id'];
-                if (!isset($accountsByClient[$clientId])) {
-                    $accountsByClient[$clientId] = [];
-                }
-                $accountsByClient[$clientId][] = $acc;
+        $totalAccountCount = 0;
+        foreach ($accountRows as $acc) {
+            $cid = (int)$acc['client_id'];
+            if (!isset($accountsByClient[$cid])) {
+                $accountsByClient[$cid] = [];
             }
+            $accountsByClient[$cid][] = $acc;
+            $totalAccountCount++;
         }
 
-        // Step 3: Build client lists
-        $clientsWithCloudpeid = [];
-        $clientsWithoutCloudpeid = [];
+        // 5. Build flat rows (one row per service, or one row for clients without services)
+        $rows = [];
+        $countWithoutCloudpeid = 0;
+        $countOtherBrand = 0;
+        $countWithoutAccount = 0;
 
-        foreach ($allClientsRaw as $client) {
-            if (empty($client['id'])) {
-                continue;
-            }
-            $clientId = $client['id'];
+        foreach ($allClients as $c) {
+            $clientId = (int)$c['client_id'];
+            $brandId = (int)$c['brand_id'];
+            $cloudpeid = trim($c['cloudpeid']);
+            $isCloudpeBrand = ($brandId === $this->cloudpeBrandId);
+            $clientAccounts = isset($accountsByClient[$clientId]) ? $accountsByClient[$clientId] : [];
 
-            // Get full client details to access custom fields like cloudpeid and groupid
-            $clientData = $api->getClientDetails(['id' => $clientId]);
-            $clientFull = !empty($clientData['client']) ? $clientData['client'] : $client;
-
-            // Filter: only include clients with CloudPe brand (groupid = 1)
-            $groupId = 0;
-            foreach (['groupid', 'group_id', 'brand_id', 'brandid', 'brand', 'client_group'] as $field) {
-                if (isset($clientFull[$field]) && $clientFull[$field] !== '' && $clientFull[$field] !== null) {
-                    $groupId = (int)$clientFull[$field];
-                    break;
-                }
-            }
-
-            // Skip clients not in CloudPe group (groupid = 1)
-            if ($groupId !== 1) {
+            // Only include clients that are in CloudPe brand OR have CloudPe accounts
+            if (!$isCloudpeBrand && empty($clientAccounts)) {
                 continue;
             }
 
-            $cloudpeid = !empty($clientFull['cloudpeid']) ? $clientFull['cloudpeid'] : '';
-
-            // Get this client's CloudPe services
-            $clientAccounts = !empty($accountsByClient[$clientId]) ? $accountsByClient[$clientId] : [];
-
-            // Build services array
-            $services = [];
+            // Compute tags
+            $tags = [];
             if (!empty($clientAccounts)) {
-                foreach ($clientAccounts as $acc) {
-                    if (empty($acc['id'])) {
-                        continue;
-                    }
-                    // Get sync info directly from database (not available in API)
-                    $syncInfo = $this->getAccountSyncFromDb($acc['id']);
-                    $syncDate = !empty($syncInfo['sync_date']) ? $syncInfo['sync_date'] : '';
-                    $syncStatus = !empty($syncInfo['sync_status']) ? $syncInfo['sync_status'] : '';
+                $tags[] = 'has_account';
+            } else {
+                $countWithoutAccount++;
+                $tags[] = 'no_account';
+            }
+            if ($isCloudpeBrand && empty($cloudpeid)) {
+                $countWithoutCloudpeid++;
+                $tags[] = 'no_uid';
+            }
+            if (!$isCloudpeBrand) {
+                $countOtherBrand++;
+                $tags[] = 'other_brand';
+            }
+            $tagStr = implode(' ', $tags);
 
-                    $services[] = [
-                        'id' => $acc['id'],
-                        'status' => !empty($acc['status']) ? $acc['status'] : '',
-                        'lastupdate' => $syncDate,
+            $brandName = isset($brandNames[$brandId]) ? $brandNames[$brandId] : 'Unknown';
+
+            if (!empty($clientAccounts)) {
+                $svcCount = count($clientAccounts);
+                foreach ($clientAccounts as $idx => $acc) {
+                    $syncDate = '';
+                    $syncStatus = '';
+                    if (!empty($acc['synch_date']) && $acc['synch_date'] !== '0000-00-00 00:00:00') {
+                        $syncDate = $acc['synch_date'];
+                        $syncStatus = 'Successful';
+                        if (!empty($acc['synch_error']) && $acc['synch_error'] !== '0') {
+                            $syncStatus = 'Failed';
+                        }
+                    }
+
+                    $rows[] = [
+                        'client_id' => $clientId,
+                        'email' => $c['email'],
+                        'company' => !empty($c['companyname']) ? $c['companyname'] : '',
+                        'brand' => $brandName,
+                        'brand_id' => $brandId,
+                        'cloudpeid' => $cloudpeid,
+                        'account_id' => $acc['account_id'],
+                        'status' => $acc['status'],
+                        'sync_date' => $syncDate,
                         'sync_status' => $syncStatus,
+                        'is_first' => ($idx === 0) ? 1 : 0,
+                        'service_count' => $svcCount,
+                        'tags' => $tagStr,
                     ];
                 }
-            }
-
-            // Build client row
-            $clientRow = [
-                'client_id' => $clientId,
-                'email' => !empty($clientFull['email']) ? $clientFull['email'] : '',
-                'company' => !empty($clientFull['companyname']) ? $clientFull['companyname'] : '',
-                'cloudpeid' => $cloudpeid,
-                'services' => $services,
-            ];
-
-            // WITH cloudpeid = has cloudpeid AND has services
-            // WITHOUT cloudpeid = no cloudpeid OR no services
-            if (!empty($cloudpeid) && !empty($services)) {
-                $clientsWithCloudpeid[] = $clientRow;
             } else {
-                $clientsWithoutCloudpeid[] = $clientRow;
+                $rows[] = [
+                    'client_id' => $clientId,
+                    'email' => $c['email'],
+                    'company' => !empty($c['companyname']) ? $c['companyname'] : '',
+                    'brand' => $brandName,
+                    'brand_id' => $brandId,
+                    'cloudpeid' => $cloudpeid,
+                    'account_id' => '',
+                    'status' => '',
+                    'sync_date' => '',
+                    'sync_status' => '',
+                    'is_first' => 1,
+                    'service_count' => 1,
+                    'tags' => $tagStr,
+                ];
             }
         }
 
-        // Sort by client_id descending
-        usort($clientsWithCloudpeid, function($a, $b) {
-            return $b['client_id'] - $a['client_id'];
-        });
-        usort($clientsWithoutCloudpeid, function($a, $b) {
-            return $b['client_id'] - $a['client_id'];
-        });
-
-        // Assign variables to template
-        // Total accounts = total clients in CloudPe group (with + without cloudpeid)
-        $this->template->assign('totalAccounts', count($clientsWithCloudpeid) + count($clientsWithoutCloudpeid));
-        $this->template->assign('totalClients', count($clientsWithCloudpeid) + count($clientsWithoutCloudpeid));
-        $this->template->assign('clientsWithCloudpeid', $clientsWithCloudpeid);
-        $this->template->assign('clientsWithoutCloudpeid', $clientsWithoutCloudpeid);
+        // Assign to template
+        $this->template->assign('rows', $rows);
+        $this->template->assign('totalAccounts', $totalAccountCount);
+        $this->template->assign('countWithoutCloudpeid', $countWithoutCloudpeid);
+        $this->template->assign('countOtherBrand', $countOtherBrand);
+        $this->template->assign('countWithoutAccount', $countWithoutAccount);
+        $this->template->assign('cloudpeBrandId', $this->cloudpeBrandId);
+        $this->template->assign('cloudpeBrandName', isset($brandNames[$this->cloudpeBrandId]) ? $brandNames[$this->cloudpeBrandId] : 'CloudPe');
         $this->template->assign('hasServerConfig', (bool)$this->serverConfig);
 
-        // Render template
         $this->template->render(APPDIR_MODULES . 'Hosting' . DS . 'cloudpe' . DS . 'admin' . DS . 'default.tpl', [], true);
     }
 

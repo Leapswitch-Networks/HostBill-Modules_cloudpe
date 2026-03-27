@@ -17,6 +17,7 @@ class cloudpe_controller extends HBController
      */
     public function call_EveryRun()
     {
+        echo "CloudPe EveryRun: Finished." . PHP_EOL;
         return "CloudPe EveryRun: Finished.";
     }
 
@@ -61,8 +62,8 @@ class cloudpe_controller extends HBController
 
         $allAccounts = isset($response['accounts']) ? $response['accounts'] : [];
 
-        echo "CloudPe Daily Sync: Found " . count($allAccounts) . " Need to debug for sync process for class error.." . PHP_EOL;
-        return "CloudPe Daily Sync: Found " . count($allAccounts) . " accounts to process.";
+        // echo "CloudPe Daily Sync: Found " . count($allAccounts) . " Need to debug for sync process for class error.." . PHP_EOL;
+        // return "CloudPe Daily Sync: Found " . count($allAccounts) . " accounts to process.";
 
         $count = 0;
         foreach ($allAccounts as $acc) {
@@ -122,7 +123,6 @@ class cloudpe_controller extends HBController
         }
 
         echo "CloudPe Daily Sync: Completed. Processed {$count} accounts." . PHP_EOL;
-
         return "CloudPe Daily Sync: {$count} accounts processed.";
     }
 }

@@ -10,22 +10,21 @@
 class cloudpe extends HostingModule
 {
     protected $modname = 'CloudPe';
-    protected $version = '1.0.4';
+    protected $version = '1.0.5';
     protected $description = 'CloudPe Provisioning module for HostBill which communicate with CloudPe VHI to create and manage Users & envirnments.';
     protected $client_data;
 
     /**
-     * Module info array - tells HostBill what features the module offers
-     * NOTE: $info is for OtherModule only, not HostingModule.
-     * Keeping it here causes HostBill to load both admin and cron controllers
-     * simultaneously, resulting in "Cannot declare class" PHP error.
-     * HostingModule discovers controllers by file presence automatically.
+     * Module info array - tells HostBill what features the module offers.
+     * Flags are stored in hb_modules_configuration.settings as pipe-delimited string.
+     * On existing installs, bump $version and update via upgrade() method.
      * @var array
      */
     protected $info = [
-        'haveadmin' => true, // Module has admin controller
-        'havecron' => true,  // Module has cron controller
-        'havetpl' => true,   // Module uses templates
+        'haveadmin' => true,   // Module has admin controller
+        'havecron' => true,    // Module has cron controller
+        'havetpl' => true,     // Module uses templates
+        'extras_menu' => true, // Show in Extras > Plugins menu
     ];
 
     /**
@@ -135,10 +134,10 @@ class cloudpe extends HostingModule
     {
         $db = HBRegistry::db();
 
-        // Update settings flags (haveadmin, havecron, havetpl)
+        // Update settings flags (haveadmin, havecron, havetpl, extras_menu)
         $db->prepare(
             "UPDATE hb_modules_configuration SET settings = ? WHERE module = 'cloudpe'"
-        )->execute(['|havecron|haveadmin|havetpl|']);
+        )->execute(['|havecron|haveadmin|havetpl|extras_menu|']);
 
         // Register cron task if not already present
         $stmt = $db->prepare("SELECT id FROM hb_modules_configuration WHERE module = 'cloudpe' LIMIT 1");
@@ -220,37 +219,29 @@ class cloudpe extends HostingModule
      */
     public function getSynchInfo()
     {
-        hbm_log_system(sprintf("getSynchInfo called for account_id: %s", $this->account_details['id'] ?? 'unknown'), "CloudPe Sync");
-
-        $client_data = $this->getClientDetails($this->account_details['client_id']);
-        $cloudpeid = $client_data['client']['cloudpeid'];
-        $path = 'billing/account/rest/getaccounts';
-        $data = array(
-            'filterField' => 'uid',
-            'filterValue' => $cloudpeid,
-        );
-
-        if (!empty($cloudpeid)) {
-            $user_details =  $this->Send($path, $data);
-            // hbm_log_system(sprintf("getSynchInfo: user_details: %s", json_encode($user_details, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)), "CloudPe Module");
-
-            if (!empty($user_details['totalCount'])) {
-                $api = new ApiWrapper();
-                $params = [
-                    'id' => $this->account_details['id'],
-                ];
-
-                if ($user_details['array'][0]['isEnabled'] == 0) {
-                    $params['status'] = 'Terminated';
-                } elseif ($user_details['array'][0]['status'] == 1) {
-                    $params['status'] = 'Active';
-                } else {
-                    $params['status'] = 'Suspended';
-                }
-                $api->editAccountDetails($params);
-            }
+        $cloudpeid = $this->getCloudpeId('getSynchInfo');
+        if (!$cloudpeid) {
+            return false;
         }
 
+        // $user_details = $this->Send('billing/account/rest/getaccounts', [
+        //     'filterField' => 'uid',
+        //     'filterValue' => $cloudpeid,
+        // ]);
+
+        // if (!empty($user_details['totalCount'])) {
+        //     $api = new ApiWrapper();
+        //     $params = ['id' => $this->account_details['id']];
+
+        //     if ($user_details['array'][0]['isEnabled'] == 0) {
+        //         $params['status'] = 'Terminated';
+        //     } elseif ($user_details['array'][0]['status'] == 1) {
+        //         $params['status'] = 'Active';
+        //     } else {
+        //         $params['status'] = 'Suspended';
+        //     }
+        //     $api->editAccountDetails($params);
+        // }
 
         return array(
             'user' => '',
@@ -260,44 +251,30 @@ class cloudpe extends HostingModule
 
     public function Suspend()
     {
-        $client_data = $this->getClientDetails($this->account_details['client_id']);
-        // hbm_log_system(sprintf("Suspend: account_details: %s", json_encode($this->account_details, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)), "CloudPe Module");
-        // hbm_log_system(sprintf("Suspend: product_details: %s", json_encode($this->product_details, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)), "CloudPe Module");
-        // hbm_log_system(sprintf("Suspend: account_config: %s", json_encode($this->account_config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)), "CloudPe Module");
-        // hbm_log_system(sprintf("Suspend: client_data: %s", json_encode($client_data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)), "CloudPe Module");
-        // hbm_log_system(sprintf("Suspend: connection: %s", json_encode($this->connection, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)), "CloudPe Module");
-
-        $cloudpeid = $client_data['client']['cloudpeid'];
-        $path = 'billing/account/rest/setaccountstatus';
-        $data = array(
-            'uid' => $cloudpeid,
-            'status' => 2,
-        );
-
-        if (!empty($cloudpeid) && $this->Send($path, $data)) {
-            $this->addInfo("Account Inactivated successfully.");
-            return true;
-        } else {
+        $cloudpeid = $this->getCloudpeId('Suspend');
+        if (!$cloudpeid) {
             return false;
         }
+
+        if ($this->Send('billing/account/rest/setaccountstatus', ['uid' => $cloudpeid, 'status' => 2])) {
+            $this->addInfo("Account Inactivated successfully.");
+            return true;
+        }
+        return false;
     }
 
     public function Unsuspend()
     {
-        $client_data = $this->getClientDetails($this->account_details['client_id']);
-        $cloudpeid = $client_data['client']['cloudpeid'];
-        $path = 'billing/account/rest/setaccountstatus';
-        $data = array(
-            'uid' => $cloudpeid,
-            'status' => 1,
-        );
-
-        if (!empty($cloudpeid) && $this->Send($path, $data)) {
-            $this->addInfo("Account Activated successfully.");
-            return true;
-        } else {
+        $cloudpeid = $this->getCloudpeId('Unsuspend');
+        if (!$cloudpeid) {
             return false;
         }
+
+        if ($this->Send('billing/account/rest/setaccountstatus', ['uid' => $cloudpeid, 'status' => 1])) {
+            $this->addInfo("Account Activated successfully.");
+            return true;
+        }
+        return false;
     }
 
     public function Terminate()
@@ -378,12 +355,25 @@ class cloudpe extends HostingModule
         }
     }
 
-    protected function getClientDetails($ID)
+    /**
+     * Get CloudPe ID for the current account's client.
+     * Logs and sets error if not configured.
+     *
+     * @param string $action Action name for log context (e.g. 'Suspend', 'getSynchInfo')
+     * @return string|false CloudPe ID or false if not set
+     */
+    protected function getCloudpeId($action)
     {
         $api = new ApiWrapper();
-        $params = [
-            'id' => $ID,
-        ];
-        return $api->getClientDetails($params);
+        $client_data = $api->getClientDetails(['id' => $this->account_details['client_id']]);
+        $cloudpeid = $client_data['client']['cloudpeid'] ?? '';
+
+        if (empty($cloudpeid)) {
+            hbm_log_error(sprintf("%s failed: Client #%s does not have a CloudPe ID configured (Account #%s)", $action, $this->account_details['client_id'], $this->account_details['id']), "CloudPe Module");
+            $this->addError('Client does not have a CloudPe ID configured.');
+            return false;
+        }
+
+        return $cloudpeid;
     }
 }
