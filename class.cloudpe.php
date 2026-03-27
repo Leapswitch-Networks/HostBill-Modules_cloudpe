@@ -224,24 +224,25 @@ class cloudpe extends HostingModule
             return false;
         }
 
-        // $user_details = $this->Send('billing/account/rest/getaccounts', [
-        //     'filterField' => 'uid',
-        //     'filterValue' => $cloudpeid,
-        // ]);
+        $user_details = $this->Send('billing/account/rest/getaccounts', [
+            'filterField' => 'uid',
+            'filterValue' => $cloudpeid,
+        ]);
+        
 
-        // if (!empty($user_details['totalCount'])) {
-        //     $api = new ApiWrapper();
-        //     $params = ['id' => $this->account_details['id']];
+        if (!empty($user_details['totalCount'])) {
+            $api = new ApiWrapper();
+            $params = ['id' => $this->account_details['id']];
 
-        //     if ($user_details['array'][0]['isEnabled'] == 0) {
-        //         $params['status'] = 'Terminated';
-        //     } elseif ($user_details['array'][0]['status'] == 1) {
-        //         $params['status'] = 'Active';
-        //     } else {
-        //         $params['status'] = 'Suspended';
-        //     }
-        //     $api->editAccountDetails($params);
-        // }
+            if ($user_details['array'][0]['isEnabled'] == 0) {
+                $params['status'] = 'Terminated';
+            } elseif ($user_details['array'][0]['status'] == 1) {
+                $params['status'] = 'Active';
+            } else {
+                $params['status'] = 'Suspended';
+            }
+            $api->editAccountDetails($params);
+        }
 
         return array(
             'user' => '',
@@ -277,11 +278,11 @@ class cloudpe extends HostingModule
         return false;
     }
 
-    public function Terminate()
-    {
-        // hbm_log_system("Terminate called", "CloudPe Module");
-        return true;
-    }
+    // public function Terminate()
+    // {
+    //     hbm_log_system("Terminate called", "CloudPe Module");
+    //     return true;
+    // }
 
     // public function Renewal()
     // {

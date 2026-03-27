@@ -68,18 +68,20 @@ class cloudpe_controller extends HBController
         $count = 0;
         foreach ($allAccounts as $acc) {
             echo "Processing Account #{$acc['id']} (Client ID: {$acc['client_id']}, Status: {$acc['status']})..." . PHP_EOL;
-        //     if (!in_array($acc['status'], ['Active', 'Suspended', 'Pending'])) {
-        //         continue;
-        //     }
+            if (!in_array($acc['status'], ['Active', 'Suspended', 'Pending'])) {
+                continue;
+            }
 
-        //     // Get client's cloudpeid
-        //     $clientData = $api->getClientDetails(['id' => $acc['client_id']]);
-        //     $cloudpeid = !empty($clientData['client']['cloudpeid']) ? $clientData['client']['cloudpeid'] : '';
+            // Get client's cloudpeid
+            $clientData = $api->getClientDetails(['id' => $acc['client_id']]);
+            $cloudpeid = !empty($clientData['client']['cloudpeid']) ? $clientData['client']['cloudpeid'] : '';
 
-        //     if (empty($cloudpeid)) {
-        //         continue;
-        //     }
+            if (empty($cloudpeid)) {
+                continue;
+            }
 
+            echo "  => CloudPe ID: " . ($cloudpeid ?: 'Not Set') . PHP_EOL; 
+            
         //     // Call CloudPe API to get remote account status
         //     $data = [
         //         'filterField' => 'uid',
